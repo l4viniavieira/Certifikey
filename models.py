@@ -1,5 +1,9 @@
 from django.db import models
+from django.contrib.auth.models import User
 from django.core.validators import FileExtensionValidator, MinValueValidator
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
 
 class Curso(models.Model):
     nome = models.CharField(max_length=150, verbose_name="Nome do Curso")
@@ -16,24 +20,28 @@ class Curso(models.Model):
 
 
 class Estudante(models.Model):
+    usuario = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="estudante",
+        verbose_name="Usuário do Sistema"
+    )
     nome_completo = models.CharField(max_length=150, verbose_name="Nome Completo")
-    email = models.EmailField(
-        max_length=100, 
-        unique=True, 
-        verbose_name="E-mail Institucional"
-    )  
     matricula = models.CharField(
         max_length=20, 
         unique=True, 
         verbose_name="Matrícula"
     ) 
-    senha = models.CharField(max_length=128, verbose_name="Senha")
-    ano_ingresso = models.PositiveIntegerField(verbose_name="Ano de Ingresso")
+    ano_ingresso = models.PositiveIntegerField(default=2026, verbose_name="Ano de Ingresso")
     curso = models.ForeignKey(
         Curso, 
-        on_delete=models.CASCADE, 
+        on_delete=models.SET_NULL, 
+        null=True,
+        blank=True,
         verbose_name="Curso Técnico"
-    )  
+    )   
 
     def __str__(self):
         return f"{self.nome_completo} ({self.matricula})"
@@ -154,3 +162,14 @@ class Tutorial(models.Model):
         verbose_name = "Tutorial"
         verbose_name_plural = "Tutoriais"
         ordering = ['ordem_exibicao']
+
+
+# Sinal posicionado ao final para garantir que o modelo Estudante já existe na memória
+@receiver(post_save, sender=User)
+def criar_perfil_estudante(sender, instance, created, **kwargs):
+    if created:
+        Estudante.objects.create(
+            usuario=instance, 
+            nome_completo=instance.username,
+            matricula=f"MAT-{instance.id}"
+        )
